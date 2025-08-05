@@ -1,5 +1,7 @@
 import json
+import uuid
 from pathlib import Path
+import hashlib
 from datetime import datetime
 from typing import Any, Optional
 from utils.file_utils import format_timestamp, record_error_file
@@ -14,6 +16,21 @@ latest_timestamps: dict[str, datetime] = {
     "events": datetime(1900, 1, 1),
 }
 
+
+def get_stable_id(data: dict[str, Any]) -> str:
+    known_id = data.get("_id")
+    if known_id:
+        return known_id
+
+    key_parts = [
+        data.get("identifier", ""),
+        data.get("jurisdiction", {}).get("name", ""),
+        str(data.get("legislative_session", "")),
+    ]
+    raw_string = "|".join(key_parts)
+    return hashlib.md5(raw_string.encode()).hexdigest()[:12]  # Shorten for filename
+
+
 def to_dt_obj(ts_str: str | datetime) -> Optional[datetime]:
     if isinstance(ts_str, datetime):
         return ts_str
@@ -26,6 +43,7 @@ def to_dt_obj(ts_str: str | datetime) -> Optional[datetime]:
     except Exception as e:
         print(f"❌ Failed to parse timestamp: {ts_str} ({e})")
         return None
+
 
 def read_all_latest_timestamps():
     global latest_timestamps
@@ -42,6 +60,7 @@ def read_all_latest_timestamps():
             "events": datetime(1900, 1, 1),
         }
 
+
 def update_latest_timestamp(
     category: str,
     current_dt: Optional[datetime],
@@ -57,6 +76,7 @@ def update_latest_timestamp(
         return current_dt
 
     return existing_dt
+
 
 def extract_timestamp(data: dict[str, Any], category: str) -> str | None:
     try:
@@ -89,6 +109,7 @@ def extract_timestamp(data: dict[str, Any], category: str) -> str | None:
     except Exception as e:
         return f"ERROR_{category.upper()}_{str(e)}"
 
+
 def is_newer_than_latest(
     data: dict[str, Any],
     latest_timestamp_dt: datetime,
@@ -96,6 +117,7 @@ def is_newer_than_latest(
     DATA_NOT_PROCESSED_FOLDER: Path,
 ) -> bool:
     raw_ts = extract_timestamp(data, category)
+    category_prefix = category[:-1] if category.endswith("s") else category
 
     if isinstance(raw_ts, str) and raw_ts in {
         "NO_ACTIONS_FOUND",
@@ -109,7 +131,7 @@ def is_newer_than_latest(
         record_error_file(
             DATA_NOT_PROCESSED_FOLDER,
             f"from_is_newer_than_latest_{raw_ts.lower()}",
-            filename="unknown.json",
+            filename=f"{category_prefix}_{data.get('_id', uuid.uuid4())}.json",
             data=data,
         )
         return False
@@ -122,11 +144,12 @@ def is_newer_than_latest(
         record_error_file(
             DATA_NOT_PROCESSED_FOLDER,
             f"from_is_newer_than_latest_parse_error",
-            filename="unknown.json",
+            filename=f"{category_prefix}_{get_stable_id(data)}.json",
             data=data,
             original_filename=raw_ts,
         )
         return False
+
 
 def write_latest_timestamp_file():
     try:
