@@ -34,9 +34,6 @@ def handle_bill(
     Returns:
         bool: True if saved successfully, False if skipped due to missing identifier.
     """
-
-    # Optional: Download linked PDF files (⚠️ very slow).
-    # Default is OFF to preserve performance.
     DOWNLOAD_PDFS = False
     global BILL_LATEST_TIMESTAMP
 
@@ -52,18 +49,28 @@ def handle_bill(
         )
         return False
 
-    save_path = Path(DATA_PROCESSED_FOLDER).joinpath(
-        f"country:us",
-        f"state:{STATE_ABBR}",
-        "sessions",
-        "ocd-session",
-        f"country:us",
-        f"state:{STATE_ABBR}",
-        date_folder,
-        session_name,
-        "bills",
-        bill_identifier,
-    )
+    is_usa = STATE_ABBR.lower() == "usa"
+    session_id = data.get("legislative_session", "unknown-session")
+    bill_id = bill_identifier.replace(" ", "")
+
+    if is_usa:
+        save_path = Path(DATA_PROCESSED_FOLDER).joinpath(
+            "country:us",
+            "congress",
+            session_id,
+            "bills",
+            bill_id,
+        )
+    else:
+        save_path = Path(DATA_PROCESSED_FOLDER).joinpath(
+            "country:us",
+            f"state:{STATE_ABBR.lower()}",
+            "sessions",
+            session_id,
+            "bills",
+            bill_id,
+        )
+
     (save_path / "logs").mkdir(parents=True, exist_ok=True)
     (save_path / "files").mkdir(parents=True, exist_ok=True)
 
@@ -76,7 +83,6 @@ def handle_bill(
             BILL_LATEST_TIMESTAMP = update_latest_timestamp(
                 "bills", current_dt, BILL_LATEST_TIMESTAMP
             )
-
     else:
         timestamp = None
 
@@ -94,7 +100,6 @@ def handle_bill(
     if actions:
         write_action_logs(actions, bill_identifier, save_path / "logs")
 
-    # Download associated bill PDFs: if enabled
     if DOWNLOAD_PDFS:
         download_bill_pdf(data, save_path, bill_identifier)
 

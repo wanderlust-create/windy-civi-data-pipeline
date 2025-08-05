@@ -60,8 +60,8 @@ def handle_event(
 
     timestamp = format_timestamp(start_date)
     if timestamp == "unknown":
-        print(f"⚠️ Event {event_id} has unrecognized timestamp format: {timestamp}")
-    if timestamp and timestamp != "unknown":
+        print(f"⚠️ Event {event_id} has unrecognized timestamp format: {start_date}")
+    else:
         current_dt = to_dt_obj(timestamp)
         EVENT_LATEST_TIMESTAMP = update_latest_timestamp(
             "events", current_dt, EVENT_LATEST_TIMESTAMP
@@ -70,17 +70,25 @@ def handle_event(
     event_name = data.get("name", "event")
     short_name = clean_event_name(event_name)
 
-    base_path = Path(DATA_PROCESSED_FOLDER).joinpath(
-        f"country:us",
-        f"state:{STATE_ABBR}",
-        "sessions",
-        "ocd-session",
-        f"country:us",
-        f"state:{STATE_ABBR}",
-        date_folder,
-        session_name,
-        "events",
-    )
+    session_id = data.get("legislative_session", "unknown-session")
+    is_usa = STATE_ABBR.lower() == "usa"
+
+    if is_usa:
+        base_path = Path(DATA_PROCESSED_FOLDER).joinpath(
+            "country:us",
+            "congress",
+            session_id,
+            "events",
+        )
+    else:
+        base_path = Path(DATA_PROCESSED_FOLDER).joinpath(
+            "country:us",
+            f"state:{STATE_ABBR.lower()}",
+            "sessions",
+            session_id,
+            "events",
+        )
+
     base_path.mkdir(parents=True, exist_ok=True)
 
     output_file = base_path / f"{timestamp}_{short_name}.json"
